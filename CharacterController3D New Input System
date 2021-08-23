@@ -1,0 +1,258 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class PlayerController : MonoBehaviour
+{
+    public EnemyAiTutorial EnemyAiTutorial;
+    public GameObject RunImage;
+    public GameObject ShieldImage;
+    private CharacterController controller;
+    private Vector3 playerVelocity;
+    private bool groundedPlayer;
+    public bool koşma = false;
+    [SerializeField]
+    private float playerSpeed = 2.0f;
+    [SerializeField]
+    private float jumpHeight = 1.0f;
+    [SerializeField]
+    private float gravityValue = -9.81f;
+    [SerializeField]
+    private float rotationSpeed = 4f;
+    public Player playerInput;
+    private Transform child;
+    private Animator anim;
+    public Transform attackPoint;
+    public LayerMask enemyLayers;
+    public float attackRange = 0.5f;
+    public float currenthealth;
+    public float maxHealth;
+    public int Attackdamage = 40;
+
+    private void Awake()
+    {
+        playerInput = new Player();
+        controller = GetComponent<CharacterController>();
+    }
+    private Transform cameraMain;
+    private void OnEnable()
+    {
+        playerInput.Enable();
+    }
+
+    private void OnDisable()
+    {
+        playerInput.Disable();
+    }
+
+    private void Start()
+    {
+        cameraMain = Camera.main.transform;
+        child = transform.GetChild(0).transform;
+        anim = gameObject.GetComponentInChildren<Animator>();
+        koşma = false;
+    }
+
+    void Update()
+    {
+
+        groundedPlayer = controller.isGrounded;
+        if (groundedPlayer && playerVelocity.y < 0)
+        {
+            playerVelocity.y = 0f;
+        }
+        Vector2 movementInput = playerInput.PlayerMain.Move.ReadValue<Vector2>();
+        Vector3 move = (cameraMain.forward* movementInput.y+ cameraMain.right*movementInput.x);
+        move.y = 0f;
+        controller.Move(move * Time.deltaTime * playerSpeed);
+        if (move != Vector3.zero)
+        {
+            gameObject.transform.forward = move;
+        }
+
+        if (playerInput.PlayerMain.Jump.triggered && groundedPlayer)
+        {
+            Jump();
+        }
+         if (playerInput.PlayerMain.Attack.triggered && groundedPlayer)
+        {
+            Attack();
+        }
+         if (playerInput.PlayerMain.Run.triggered && groundedPlayer)
+        {
+            Run();
+        }
+
+        if (playerInput.PlayerMain.Shield.triggered)
+        {
+            Shield();
+        }       
+        playerVelocity.y += gravityValue * Time.deltaTime;
+        controller.Move(playerVelocity * Time.deltaTime);
+        if(movementInput!= Vector2.zero)
+        {
+            Hareket();
+        }
+
+        else
+        {
+            anim.SetInteger("AnimationPar", 0);
+        }
+    }
+
+
+     void OnDrawGizmosSelected()
+     {
+        if (attackPoint == null)
+            return;
+        Gizmos.DrawWireSphere(attackPoint.position, attackRange);
+     }
+    void Run()
+    {
+        if (koşma == false && anim.GetBool("isShielding") == false)
+        {
+            koşma = true;
+            playerSpeed = 4f;
+            RunImage.SetActive(false);
+        }
+        else if (koşma == true && anim.GetBool("isShielding") == false)
+        {
+            koşma = false;
+            playerSpeed = 2.0f;
+            RunImage.SetActive(true);
+        }
+    }
+    void Shield()
+    {
+        if (anim.GetBool("isShielding") == false)
+        {
+            anim.SetInteger("AnimationPar", 0);
+            anim.SetBool("isShielding", true);
+            ShieldImage.SetActive(false);
+            playerSpeed = 0f;
+        }
+        else
+        {
+            anim.SetBool("isShielding", false);
+            ShieldImage.SetActive(true);
+            if (koşma == true)
+            {
+                playerSpeed = 4f;
+            }
+            else if (koşma == false)
+            {
+                playerSpeed = 2.0f;
+            }
+        }
+    }
+    void Hareket()
+    {
+        if (koşma == true)
+        {
+            anim.SetInteger("AnimationPar", 4);
+            Quaternion rotation = Quaternion.Euler(new Vector3(child.localEulerAngles.x, cameraMain.localEulerAngles.y, child.localEulerAngles.z));
+            child.rotation = Quaternion.Lerp(child.rotation, rotation, Time.deltaTime * rotationSpeed);
+        }
+        else if (koşma == false)
+        {
+            anim.SetInteger("AnimationPar", 1);
+            Quaternion rotation = Quaternion.Euler(new Vector3(child.localEulerAngles.x, cameraMain.localEulerAngles.y, child.localEulerAngles.z));
+            child.rotation = Quaternion.Lerp(child.rotation, rotation, Time.deltaTime * rotationSpeed);
+        }
+    }
+    void Jump()
+    {
+        playerVelocity.y += Mathf.Sqrt(jumpHeight * -3.0f * gravityValue);
+    }
+    void Attack()
+    {
+        groundedPlayer = controller.isGrounded;
+        if (groundedPlayer && playerVelocity.y < 0)
+        {
+            playerVelocity.y = 0f;
+        }
+        Vector2 movementInput = playerInput.PlayerMain.Move.ReadValue<Vector2>();
+        Vector3 move = (cameraMain.forward * movementInput.y + cameraMain.right * movementInput.x);
+        move.y = 0f;
+        controller.Move(move * Time.deltaTime * playerSpeed);
+        if (move != Vector3.zero)
+        {
+            gameObject.transform.forward = move;
+        }
+        anim.SetBool("isShielding", false);
+        ShieldImage.SetActive(true);
+        if (koşma == true && move != Vector3.zero)
+        {
+            anim.SetTrigger("isAttacking2");
+            if (koşma == true)
+            {
+                playerSpeed = 4.0f;
+            }
+            else
+            {
+                playerSpeed = 2.0f;
+            }
+        }
+        else
+        {
+            anim.SetTrigger("isAttacking");
+            if (koşma == true)
+            {
+                playerSpeed = 4.0f;
+            }
+            else
+            {
+                playerSpeed = 2.0f;
+            }
+        }
+    }
+    public void AttackRead()
+    {
+        Collider[] hitEnimies = Physics.OverlapSphere(attackPoint.position, attackRange, enemyLayers);
+        foreach (Collider enemy in hitEnimies)
+        {
+            if (enemy.name== "EnemyTurtle")
+            {
+                enemy.GetComponent<TurtleAi>().TakeDamage(Attackdamage);
+                Debug.Log("We hit" + enemy.name);
+            }
+            if (enemy.name == "EnemySlime")
+            {
+                enemy.GetComponent<EnemyAiTutorial>().TakeDamage(Attackdamage);
+                Debug.Log("We hit" + enemy.name);
+            }
+            if (enemy.name== "Top1"||enemy.name== "Top2" || enemy.name == "Top3" || enemy.name == "Top4" || enemy.name == "Top5" || enemy.name == "Çam1" || enemy.name == "Çam2" || 
+                enemy.name == "Çam3"|| enemy.name == "Çam4" || enemy.name == "Çam5" || enemy.name == "Çam6" || enemy.name == "Çam7" || enemy.name == "Çam8" || enemy.name == "Çam9" || enemy.name == "Çam10"
+                || enemy.name == "Üçlü1" || enemy.name == "Üçlü2")
+            {
+                enemy.GetComponent<Ağaçlar>().TakeDamage(1);
+                Debug.Log("We hit" + enemy.name);
+            }
+            if (enemy.name == "EnemySlime (1)")
+            {
+                enemy.GetComponent<EnemyAiTutorial>().TakeDamage(Attackdamage);
+                Debug.Log("We hit" + enemy.name);
+            }
+            if (enemy.name == "EnemyTurtle (1)")
+            {
+                enemy.GetComponent<TurtleAi>().TakeDamage(Attackdamage);
+                Debug.Log("We hit" + enemy.name);
+            }
+        }
+    }
+    public void TakeDamage(int damage)
+    {
+        currenthealth -= damage;
+        if (currenthealth <= 0)
+        {
+            anim.SetBool("isDeadPlayer", true);
+            Debug.Log("Geberdin");
+            Invoke(nameof(DestroyUs), 3f);
+        }
+    }
+    private void DestroyUs()
+    {
+        anim.SetBool("isDeadPlayer", false);
+    }
+}
